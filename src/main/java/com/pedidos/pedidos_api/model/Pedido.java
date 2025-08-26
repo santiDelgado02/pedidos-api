@@ -3,6 +3,8 @@ package com.pedidos.pedidos_api.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 //Le dice a JPA que esta clase representa una tabla en la base de datos.
 @Entity
 //Si no pones @Table, JPA crea la tabla con el nombre de la clase (Pedido) por defecto
@@ -20,6 +22,7 @@ public class Pedido {
     @Column(nullable = false)
     private String estado;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion = LocalDateTime.now();
 
