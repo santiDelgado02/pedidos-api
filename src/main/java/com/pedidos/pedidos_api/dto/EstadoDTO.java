@@ -1,24 +1,23 @@
 package com.pedidos.pedidos_api.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
-import jakarta.validation.constraints.Pattern;
+import com.pedidos.pedidos_api.model.Estado;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 
 public class EstadoDTO {
 
-    @NotBlank(message = "El estado no puede estar vacío")
-    @Size(max = 50, message = "El estado no puede superar 50 caracteres")
-    @Pattern(regexp = "PENDIENTE|EN_PROCESO|COMPLETADO",
-             message = "El estado debe ser PENDIENTE, EN_PROCESO o COMPLETADO")
-    private String estado;
+    @NotNull(message = "El estado no puede estar vacío")
+    @Schema(description = "Estado del pedido", example = "PENDIENTE", allowableValues = {"PENDIENTE", "EN_PROCESO", "COMPLETADO"})
+    private Estado estado;
 
     // Getter
-    public String getEstado() {
+    public Estado getEstado() {
         return estado;
     }
 
     // Setter
-    public void setEstado(String estado) {
+    public void setEstado(Estado estado) {
         this.estado = estado;
     }
 }
