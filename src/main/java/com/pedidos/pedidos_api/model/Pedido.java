@@ -20,7 +20,8 @@ public class Pedido {
     private String descripcion;
 
     @Column(nullable = false)
-    private String estado;
+    @Enumerated(EnumType.STRING)
+    private Estado estado;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @Column(name = "fecha_creacion")
@@ -33,8 +34,8 @@ public class Pedido {
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
 
-    public String getEstado() { return estado; }
-    public void setEstado(String estado) { this.estado = estado; }
+    public Estado getEstado() { return estado; }
+    public void setEstado(Estado estado) { this.estado = estado; }
 
     public LocalDateTime getFechaCreacion() { return fechaCreacion; }
     public void setFechaCreacion(LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }

@@ -1,17 +1,19 @@
 package com.pedidos.pedidos_api.service;
 
-import com.pedidos.pedidos_api.dto.PedidoDTO;
-import com.pedidos.pedidos_api.exception.PedidoNotFoundException;
-import com.pedidos.pedidos_api.model.Pedido;
-import com.pedidos.pedidos_api.repository.PedidoRepository;
+import java.util.List;
+import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
-import java.util.List;
-import java.util.Optional;
+import com.pedidos.pedidos_api.dto.PedidoDTO;
+import com.pedidos.pedidos_api.exception.PedidoNotFoundException;
+import com.pedidos.pedidos_api.model.Estado;
+import com.pedidos.pedidos_api.model.Pedido;
+import com.pedidos.pedidos_api.repository.PedidoRepository;
 
 
 @Service
@@ -57,7 +59,7 @@ public class PedidoService {
 
     // PATCH - actualizar solo estado
     @Transactional
-    public Pedido updatePedidoStatus(Long id, String estado) {
+    public Pedido updatePedidoStatus(Long id, Estado estado) {
         logger.info("Actualizando estado del pedido con id {} a '{}'", id, estado);
         return pedidoRepository.findById(id).map(pedido -> {
             pedido.setEstado(estado);
@@ -68,6 +70,7 @@ public class PedidoService {
             return new PedidoNotFoundException(id);
         });
     }
+
 
     // DELETE
     @Transactional
@@ -82,21 +85,22 @@ public class PedidoService {
     // Métodos auxiliares privados
 
     private void mapDTOToPedido(PedidoDTO dto, Pedido pedido) {
-    // Solo asigna valores no nulos y elimina espacios en blanco
+        // Solo asigna valores no nulos y elimina espacios en blanco
         if (dto.getDescripcion() != null && !dto.getDescripcion().isBlank()) {
             pedido.setDescripcion(dto.getDescripcion().trim());
         }
-        if (dto.getEstado() != null && !dto.getEstado().isBlank()) {
-            pedido.setEstado(dto.getEstado().trim());
+        if (dto.getEstado() != null) {
+            pedido.setEstado(dto.getEstado()); // ahora es enum, se asigna directo
         }
-     }
+    }
+
 
     private void validatePedidoDTO(PedidoDTO dto) {
         // Validación estricta para asegurar datos válidos
         if (!StringUtils.hasText(dto.getDescripcion())) {
             throw new IllegalArgumentException("La descripción no puede estar vacía");
         }
-        if (!StringUtils.hasText(dto.getEstado())) {
+        if (dto.getEstado() == null) {
             throw new IllegalArgumentException("El estado no puede estar vacío");
         }
     }
