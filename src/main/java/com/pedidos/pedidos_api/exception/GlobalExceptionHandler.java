@@ -16,19 +16,30 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    // ---- PEDIDO ----
     @ExceptionHandler(PedidoNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handlePedidoNotFound(PedidoNotFoundException ex) {
         logger.warn("Pedido no encontrado: {}", ex.getMessage());
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("timestamp", LocalDateTime.now());
-        response.put("status", 404);
-        response.put("error", "No encontrado");
-        response.put("message", ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        return buildResponse(HttpStatus.NOT_FOUND, "Pedido no encontrado", ex.getMessage());
     }
 
+    // ---- TRANSPORTISTA ----
+    @ExceptionHandler(TransportistaNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleTransportistaNotFound(TransportistaNotFoundException ex) {
+        logger.warn("Transportista no encontrado: {}", ex.getMessage());
+        return buildResponse(HttpStatus.NOT_FOUND, "Transportista no encontrado", ex.getMessage());
+    }
+
+    // ---- PRODUCTO ----
+    @ExceptionHandler(ProductoNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleProductoNotFound(ProductoNotFoundException ex) {
+        logger.warn("Producto no encontrado: {}", ex.getMessage());
+        return buildResponse(HttpStatus.NOT_FOUND, "Producto no encontrado", ex.getMessage());
+    }
+
+    // ---- VALIDACIONES ----
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
         logger.warn("Error de validación: {}", ex.getMessage());
@@ -45,14 +56,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    // ---- GENERICO ----
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
         logger.error("Error interno del servidor: {}", ex.getMessage(), ex);
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor", ex.getMessage());
+    }
+
+    // ---- MÉTODO AUXILIAR ----
+    private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String error, String message) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("timestamp", LocalDateTime.now());
-        response.put("status", 500);
-        response.put("error", "Error interno del servidor");
-        response.put("message", ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        response.put("status", status.value());
+        response.put("error", error);
+        response.put("message", message);
+        return new ResponseEntity<>(response, status);
     }
 }

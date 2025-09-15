@@ -8,7 +8,9 @@ import jakarta.validation.constraints.NotNull;
 public class EstadoDTO {
 
     @NotNull(message = "El estado no puede estar vacío")
-    @Schema(description = "Estado del pedido", example = "PENDIENTE", allowableValues = {"PENDIENTE", "EN_PROCESO", "COMPLETADO"})
+    @Schema(description = "Estado del pedido",
+            example = "PENDIENTE",
+            allowableValues = {"PENDIENTE", "ASIGNADO", "ENTREGADO", "CANCELADO"})
     private Estado estado;
 
     // Getter

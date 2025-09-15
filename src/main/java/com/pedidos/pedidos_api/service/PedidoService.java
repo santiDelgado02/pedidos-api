@@ -1,6 +1,9 @@
 package com.pedidos.pedidos_api.service;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -10,11 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.pedidos.pedidos_api.dto.PedidoDTO;
+import com.pedidos.pedidos_api.dto.PedidoItemDTO;
 import com.pedidos.pedidos_api.exception.PedidoNotFoundException;
+import com.pedidos.pedidos_api.exception.ProductoNotFoundException;
 import com.pedidos.pedidos_api.model.Estado;
 import com.pedidos.pedidos_api.model.Pedido;
+import com.pedidos.pedidos_api.model.PedidoItem;
+import com.pedidos.pedidos_api.model.Producto;
 import com.pedidos.pedidos_api.repository.PedidoRepository;
-
+import com.pedidos.pedidos_api.repository.ProductoRepository;
 
 @Service
 public class PedidoService {
@@ -22,57 +29,92 @@ public class PedidoService {
     private static final Logger logger = LoggerFactory.getLogger(PedidoService.class);
 
     private final PedidoRepository pedidoRepository;
+    private final ProductoRepository productoRepository;
 
-    // Inyección de dependencias (Spring lo hace automático)
-    public PedidoService(PedidoRepository pedidoRepository) {
+    public PedidoService(PedidoRepository pedidoRepository, ProductoRepository productoRepository) {
         this.pedidoRepository = pedidoRepository;
+        this.productoRepository = productoRepository;
     }
 
-    public Pedido createPedidoFromDTO(PedidoDTO pedidoDTO) {
-        logger.info("Creando un nuevo pedido con descripción: {}", pedidoDTO.getDescripcion());
+    // ========================
+    // CREATE PEDIDO
+    // ========================
+    @Transactional
+    public PedidoDTO createPedidoFromDTO(PedidoDTO dto) {
+        validatePedidoDTO(dto);
+
         Pedido pedido = new Pedido();
-        pedido.setDescripcion(pedidoDTO.getDescripcion());
-        pedido.setEstado(pedidoDTO.getEstado());
-        logger.debug("Pedido mapeado correctamente, listo para guardar en la base de datos");
-        return pedidoRepository.save(pedido);
+        pedido.setDescripcion(dto.getDescripcion());
+        pedido.setEstado(dto.getEstado());
+
+        List<PedidoItem> items = new ArrayList<>();
+        for (PedidoItemDTO itemDTO : dto.getItems()) {
+            PedidoItem item = mapItemDTOToPedidoItem(itemDTO, pedido);
+            items.add(item);
+        }
+        pedido.setItems(items);
+
+        recalcularTotal(pedido);
+
+        Pedido saved = pedidoRepository.save(pedido);
+
+        return mapPedidoToDTO(saved);
     }
 
-    // READ - traer todos
+    // ========================
+    // GET ALL
+    // ========================
     public List<Pedido> getAllPedidos() {
         return pedidoRepository.findAll();
     }
 
-    // READ - traer uno por id
+    // ========================
+    // GET BY ID
+    // ========================
     public Optional<Pedido> getPedidoById(Long id) {
         return pedidoRepository.findById(id);
     }
 
+    // ========================
+    // UPDATE COMPLETO
+    // ========================
     @Transactional
-    public Pedido updatePedidoFromDTO(Long id, PedidoDTO pedidoDTO) {
-       validatePedidoDTO(pedidoDTO);
-       return pedidoRepository.findById(id).map(pedido -> {
-         mapDTOToPedido(pedidoDTO, pedido);
-            logger.info("Actualizando pedido con id {}: {}", id, pedidoDTO.getDescripcion());
+    public Pedido updatePedidoFromDTO(Long id, PedidoDTO dto) {
+        validatePedidoDTO(dto);
+
+        return pedidoRepository.findById(id).map(pedido -> {
+            mapDTOToPedido(dto, pedido);
+
+            // Limpiar items antiguos y agregar nuevos
+            pedido.getItems().clear();
+            List<PedidoItem> items = new ArrayList<>();
+            for (PedidoItemDTO itemDTO : dto.getItems()) {
+                PedidoItem item = mapItemDTOToPedidoItem(itemDTO, pedido);
+                items.add(item);
+            }
+            pedido.setItems(items);
+
+            recalcularTotal(pedido);
+
+            logger.info("Pedido con id {} actualizado, total={}", id, pedido.getTotal());
             return pedidoRepository.save(pedido);
         }).orElseThrow(() -> new PedidoNotFoundException(id));
     }
 
-    // PATCH - actualizar solo estado
+    // ========================
+    // PATCH - SOLO ESTADO
+    // ========================
     @Transactional
     public Pedido updatePedidoStatus(Long id, Estado estado) {
-        logger.info("Actualizando estado del pedido con id {} a '{}'", id, estado);
         return pedidoRepository.findById(id).map(pedido -> {
             pedido.setEstado(estado);
-            logger.debug("Pedido actualizado correctamente");
             return pedidoRepository.save(pedido);
-        }).orElseThrow(() -> {
-            logger.error("Pedido con id {} no encontrado", id);
-            return new PedidoNotFoundException(id);
-        });
+        }).orElseThrow(() -> new PedidoNotFoundException(id));
     }
 
-
+    // ========================
     // DELETE
+    // ========================
     @Transactional
     public void deletePedido(Long id) {
         if (!pedidoRepository.existsById(id)) {
@@ -81,27 +123,105 @@ public class PedidoService {
         pedidoRepository.deleteById(id);
     }
 
+    // ========================
+    // AGREGAR ITEM
+    // ========================
+    @Transactional
+    public PedidoDTO addItem(Long pedidoId, PedidoItemDTO itemDTO) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new PedidoNotFoundException(pedidoId));
 
-    // Métodos auxiliares privados
+        PedidoItem item = mapItemDTOToPedidoItem(itemDTO, pedido);
+        pedido.getItems().add(item);
 
+        recalcularTotal(pedido);
+
+        Pedido saved = pedidoRepository.save(pedido);
+        return mapPedidoToDTO(saved);
+    }
+
+    // ========================
+    // ELIMINAR ITEM
+    // ========================
+    @Transactional
+    public PedidoDTO removeItem(Long pedidoId, Long itemId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+            .orElseThrow(() -> new PedidoNotFoundException(pedidoId));
+
+        boolean removed = pedido.getItems()
+            .removeIf(item -> Objects.equals(item.getId(), itemId));
+
+        if (!removed) {
+            throw new IllegalArgumentException("Item no encontrado en el pedido");
+        }
+
+        recalcularTotal(pedido);
+        Pedido saved = pedidoRepository.save(pedido);
+        return mapPedidoToDTO(saved);
+    }
+
+    // ========================
+    // AUXILIARES
+    // ========================
     private void mapDTOToPedido(PedidoDTO dto, Pedido pedido) {
-        // Solo asigna valores no nulos y elimina espacios en blanco
         if (dto.getDescripcion() != null && !dto.getDescripcion().isBlank()) {
             pedido.setDescripcion(dto.getDescripcion().trim());
         }
         if (dto.getEstado() != null) {
-            pedido.setEstado(dto.getEstado()); // ahora es enum, se asigna directo
+            pedido.setEstado(dto.getEstado());
         }
     }
 
-
     private void validatePedidoDTO(PedidoDTO dto) {
-        // Validación estricta para asegurar datos válidos
         if (!StringUtils.hasText(dto.getDescripcion())) {
             throw new IllegalArgumentException("La descripción no puede estar vacía");
         }
         if (dto.getEstado() == null) {
             throw new IllegalArgumentException("El estado no puede estar vacío");
         }
+        if (dto.getItems() == null || dto.getItems().isEmpty()) {
+            throw new IllegalArgumentException("Debe incluir al menos un producto");
+        }
+    }
+
+    private PedidoItem mapItemDTOToPedidoItem(PedidoItemDTO itemDTO, Pedido pedido) {
+        Producto producto = productoRepository.findById(itemDTO.getProductoId())
+                .orElseThrow(() -> new ProductoNotFoundException(itemDTO.getProductoId()));
+
+        PedidoItem item = new PedidoItem();
+        item.setProducto(producto);
+        item.setCantidad(itemDTO.getCantidad());
+        item.setPrecioUnitario(producto.getPrecio());
+
+        BigDecimal subtotal = producto.getPrecio().multiply(BigDecimal.valueOf(itemDTO.getCantidad()));
+        item.setSubtotal(subtotal);
+        item.setPedido(pedido);
+
+        return item;
+    }
+
+    private void recalcularTotal(Pedido pedido) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (PedidoItem item : pedido.getItems()) {
+            total = total.add(item.getSubtotal());
+        }
+        pedido.setTotal(total);
+    }
+
+    private PedidoDTO mapPedidoToDTO(Pedido pedido) {
+        PedidoDTO dto = new PedidoDTO();
+        dto.setDescripcion(pedido.getDescripcion());
+        dto.setEstado(pedido.getEstado());
+
+        List<PedidoItemDTO> itemsDTO = new ArrayList<>();
+        for (PedidoItem item : pedido.getItems()) {
+            PedidoItemDTO itemDTO = new PedidoItemDTO();
+            itemDTO.setProductoId(item.getProducto().getId());
+            itemDTO.setCantidad(item.getCantidad());
+            itemsDTO.add(itemDTO);
+        }
+        dto.setItems(itemsDTO);
+
+        return dto;
     }
 }

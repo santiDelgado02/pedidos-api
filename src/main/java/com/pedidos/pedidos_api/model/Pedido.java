@@ -1,9 +1,12 @@
 package com.pedidos.pedidos_api.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 //Le dice a JPA que esta clase representa una tabla en la base de datos.
 @Entity
@@ -23,13 +26,25 @@ public class Pedido {
     @Enumerated(EnumType.STRING)
     private Estado estado;
 
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-    @Column(name = "fecha_creacion")
+    @Column(name = "fecha_creacion", nullable = false)
     private LocalDateTime fechaCreacion = LocalDateTime.now();
 
+    @ManyToOne
+    @JoinColumn(name = "transportista_id")
+    private Transportista transportista;
+
+    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
+    private List<PedidoItem> items;
+
+    @Column(nullable = false)
+    private BigDecimal total = BigDecimal.ZERO;
+
+    
+    
+    
     // Getters y Setters
     public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
 
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
@@ -39,4 +54,21 @@ public class Pedido {
 
     public LocalDateTime getFechaCreacion() { return fechaCreacion; }
     public void setFechaCreacion(LocalDateTime fechaCreacion) { this.fechaCreacion = fechaCreacion; }
+
+    public List<PedidoItem> getItems() { return items; }
+    public void setItems(List<PedidoItem> items) {
+        this.items = items;
+        if (items != null) {
+            for (PedidoItem item : items) {
+                item.setPedido(this);
+            }
+        }
+    }
+
+    public Transportista getTransportista() { return transportista; }
+    public void setTransportista(Transportista transportista) { this.transportista = transportista; }
+
+    public BigDecimal getTotal() { return total; }
+    public void setTotal(BigDecimal total) { this.total = total; }
 }
+
