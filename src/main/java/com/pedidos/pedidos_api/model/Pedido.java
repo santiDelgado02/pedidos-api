@@ -57,13 +57,36 @@ public class Pedido {
 
     public List<PedidoItem> getItems() { return items; }
     public void setItems(List<PedidoItem> items) {
-        this.items = items;
+        this.items.clear();
+        total = BigDecimal.ZERO;
         if (items != null) {
             for (PedidoItem item : items) {
-                item.setPedido(this);
+                addItem(item);
             }
         }
     }
+
+    public void addItem(PedidoItem item) {
+        if (item == null) return;
+        items.add(item);
+        item.setPedido(this);       // asegura relación bidireccional
+        total = total.add(item.getSubtotal());
+    }  
+
+    public void removeItem(PedidoItem item) {
+        if (items.remove(item)) {
+            item.setPedido(null);
+            recalcularTotal();
+        }
+    }
+
+    private void recalcularTotal() {
+        total = BigDecimal.ZERO;
+        for (PedidoItem item : items) {
+            total = total.add(item.getSubtotal());
+        }
+    }
+
 
     public Transportista getTransportista() { return transportista; }
     public void setTransportista(Transportista transportista) { this.transportista = transportista; }
