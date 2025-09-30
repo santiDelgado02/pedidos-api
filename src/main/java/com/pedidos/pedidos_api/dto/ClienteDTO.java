@@ -5,6 +5,7 @@ import com.pedidos.pedidos_api.interfaces.ClienteValidationGroups.OnUpdate;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class ClienteDTO {
 
@@ -17,6 +18,11 @@ public class ClienteDTO {
 
     private String telefono;
     private String direccion;
+
+    @NotBlank(message = "La contraseña es obligatoria")
+    @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
+    private String password;
+
     private Boolean activo;
 
     // Getters y setters
@@ -47,6 +53,9 @@ public class ClienteDTO {
     public void setDireccion(String direccion) {
         this.direccion = direccion;
     }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
 
     public Boolean getActivo() {
         return activo;

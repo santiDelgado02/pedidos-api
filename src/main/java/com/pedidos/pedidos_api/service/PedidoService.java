@@ -3,7 +3,6 @@ package com.pedidos.pedidos_api.service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -47,14 +46,13 @@ public class PedidoService {
         pedido.setDescripcion(dto.getDescripcion());
         pedido.setEstado(dto.getEstado());
 
+        // Convertir cada itemDTO a PedidoItem y agregar al pedido usando setItems/addItem
         List<PedidoItem> items = new ArrayList<>();
-        for (PedidoItemDTO itemDTO : dto.getItems()) {
-            PedidoItem item = mapItemDTOToPedidoItem(itemDTO, pedido);
+    for (PedidoItemDTO itemDTO : dto.getItems()) {
+        PedidoItem item = mapItemDTOToPedidoItem(itemDTO, pedido);
             items.add(item);
         }
-        pedido.setItems(items);
-
-        recalcularTotal(pedido);
+        pedido.setItems(items); // setItems se encarga de total y relación bidireccional
 
         Pedido saved = pedidoRepository.save(pedido);
 
@@ -85,21 +83,19 @@ public class PedidoService {
         return pedidoRepository.findById(id).map(pedido -> {
             mapDTOToPedido(dto, pedido);
 
-            // Limpiar items antiguos y agregar nuevos
-            pedido.getItems().clear();
+            // Limpiar items antiguos y agregar nuevos usando setItems
             List<PedidoItem> items = new ArrayList<>();
             for (PedidoItemDTO itemDTO : dto.getItems()) {
                 PedidoItem item = mapItemDTOToPedidoItem(itemDTO, pedido);
                 items.add(item);
             }
-            pedido.setItems(items);
-
-            recalcularTotal(pedido);
+            pedido.setItems(items); // setItems se encarga de total y relación bidireccional
 
             logger.info("Pedido con id {} actualizado, total={}", id, pedido.getTotal());
             return pedidoRepository.save(pedido);
         }).orElseThrow(() -> new PedidoNotFoundException(id));
     }
+
 
     // ========================
     // PATCH - SOLO ESTADO
@@ -131,10 +127,16 @@ public class PedidoService {
         Pedido pedido = pedidoRepository.findById(pedidoId)
                 .orElseThrow(() -> new PedidoNotFoundException(pedidoId));
 
-        PedidoItem item = mapItemDTOToPedidoItem(itemDTO, pedido);
-        pedido.getItems().add(item);
+        Producto producto = productoRepository.findById(itemDTO.getProductoId())
+                .orElseThrow(() -> new ProductoNotFoundException(itemDTO.getProductoId()));
 
-        recalcularTotal(pedido);
+        PedidoItem item = new PedidoItem();
+        item.setProducto(producto);
+        item.setCantidad(itemDTO.getCantidad());
+        item.setPrecioUnitario(producto.getPrecio());
+        item.setSubtotal(producto.getPrecio().multiply(BigDecimal.valueOf(itemDTO.getCantidad())));
+
+        pedido.addItem(item);  // Llama al método del modelo
 
         Pedido saved = pedidoRepository.save(pedido);
         return mapPedidoToDTO(saved);
@@ -146,16 +148,15 @@ public class PedidoService {
     @Transactional
     public PedidoDTO removeItem(Long pedidoId, Long itemId) {
         Pedido pedido = pedidoRepository.findById(pedidoId)
-            .orElseThrow(() -> new PedidoNotFoundException(pedidoId));
+                .orElseThrow(() -> new PedidoNotFoundException(pedidoId));
 
-        boolean removed = pedido.getItems()
-            .removeIf(item -> Objects.equals(item.getId(), itemId));
+        PedidoItem item = pedido.getItems().stream()
+                                .filter(i -> i.getId().equals(itemId))
+                                .findFirst()
+                                .orElseThrow(() -> new IllegalArgumentException("Item no encontrado"));
 
-        if (!removed) {
-            throw new IllegalArgumentException("Item no encontrado en el pedido");
-        }
+        pedido.removeItem(item); // 🚀 Llama al método del modelo
 
-        recalcularTotal(pedido);
         Pedido saved = pedidoRepository.save(pedido);
         return mapPedidoToDTO(saved);
     }
@@ -198,14 +199,6 @@ public class PedidoService {
         item.setPedido(pedido);
 
         return item;
-    }
-
-    private void recalcularTotal(Pedido pedido) {
-        BigDecimal total = BigDecimal.ZERO;
-        for (PedidoItem item : pedido.getItems()) {
-            total = total.add(item.getSubtotal());
-        }
-        pedido.setTotal(total);
     }
 
     private PedidoDTO mapPedidoToDTO(Pedido pedido) {

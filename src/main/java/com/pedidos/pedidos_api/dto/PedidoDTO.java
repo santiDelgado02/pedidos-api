@@ -45,6 +45,11 @@ public class PedidoDTO {
         return items;
     }
 
+    public List<PedidoItemDTO> addItem(PedidoItemDTO item) {
+        this.items.add(item);
+        return this.items;
+    }
+
     public void setItems(List<PedidoItemDTO> items) {
         this.items = items;
     }
